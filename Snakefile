@@ -9,7 +9,23 @@ rule all:
         "notebooks/01_qc_report.ipynb",
         "notebooks/02_biological_analysis.Rmd",
 
+rule rds_to_mtx:
+    # GEO only provides zUMIs-style .rds count matrices per sample (no 10x MTX
+    # available) — R reads them and writes plain 10x MTX triplets, which
+    # scanpy.read_10x_mtx can read directly (sceasy isn't Seurat-v5 compatible).
+    output:
+        matrix="results/interim/samples_mtx/{sample}/matrix.mtx.gz",
+        barcodes="results/interim/samples_mtx/{sample}/barcodes.tsv.gz",
+        features="results/interim/samples_mtx/{sample}/features.tsv.gz",
+    script:
+        "R/rds_to_mtx.R"
+
 rule ingest:
+    input:
+        expand(
+            "results/interim/samples_mtx/{sample}/matrix.mtx.gz",
+            sample=config["dataset"]["samples"].keys(),
+        ),
     output:
         "results/interim/raw.h5ad",
     script:

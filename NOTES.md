@@ -29,3 +29,12 @@ Running log of major decisions and gotchas. Not a full changelog — just what's
   Seurat object worked around it. Dropped `sceasy` — R now writes MTX directly
   (`Matrix::writeMM` + barcodes/features tsv) instead of going through a Seurat/AnnData
   object conversion at all.
+- Per-sample gene counts in the raw MTX triplets differ (e.g. one sample has ~36.8k genes,
+  another ~34.1k) — zUMIs' `dgecounts` matrix only keeps genes with at least one UMI count
+  in that sample, so a gene silent everywhere in a sample just isn't a row. `ingest.py`
+  concatenates with `anndata.concat(..., join="outer")` so genes missing from a given
+  sample get filled with zero rather than dropped from the merged object.
+- `raw.h5ad` has ~126k cells, far more than the paper's ~23k — expected at this stage.
+  zUMIs' raw counts include every barcode above a minimal read threshold, mostly empty
+  droplets/ambient noise, not just real nuclei. Cutting that down to real cells is QC's
+  job (min genes/cell, mito%, Scrublet), not ingestion's.

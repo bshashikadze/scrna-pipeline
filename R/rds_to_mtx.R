@@ -1,21 +1,37 @@
-# Reads one GEO .rds (zUMIs dgecounts) file, converts to h5ad via sceasy.
-library(Seurat)
-library(sceasy)
-library(glue)
+# Reads one GEO .rds (zUMIs dgecounts) file, writes a 10x MTX triplet.
+library(Matrix)
 
-rds_files  <- list.files(file.path("data", "raw"))
+sample_id <- snakemake@wildcards[["sample"]]
 
-output_dir <- file.path("results", "interim")
+rds_file <- list.files(
+  file.path("data", "raw"),
+  pattern = paste0("^", sample_id, "_.*\\.rds$"),
+  full.names = TRUE
+)
+stopifnot(length(rds_file) == 1)
 
-if (!dir.exists(output_dir)) dir.create(output_dir)
+x <- readRDS(rds_file)
+counts <- x$umicount$inex$all
 
-for (rds_file in rds_files) {
+out_dir <- dirname(snakemake@output[["matrix"]])
+if (!dir.exists(out_dir)) dir.create(out_dir, recursive = TRUE)
 
-  rds_file_name = gsub(".rds", "", rds_file)
+matrix_path <- sub("\\.gz$", "", snakemake@output[["matrix"]])
+writeMM(counts, matrix_path)
+system(paste("gzip -f", matrix_path))
 
-  x <- readRDS(file.path("data", "raw", rds_file))
-  umi_inex_all <- x$umicount$inex$all
-  assay_v3 <- Seurat::CreateAssayObject(counts = umi_inex_all) # otherwise getting  The `slot` argument of `GetAssayData()` was deprecated in SeuratObject 5.0.0 and is now defunct.
-  umi_inex_all_seurat <- Seurat::CreateSeuratObject(assay_v3)
-  convertFormat(obj = umi_inex_all_seurat, from="seurat", to="anndata", outFile=glue("{rds_file_name}.h5ad"))
-}
+writeLines(colnames(counts), gzfile(snakemake@output[["barcodes"]]))
+
+features <- data.frame(
+  id = rownames(counts),
+  symbol = rownames(counts),
+  type = "Gene Expression"
+)
+write.table(
+  features,
+  gzfile(snakemake@output[["features"]]),
+  sep = "\t",
+  row.names = FALSE,
+  col.names = FALSE,
+  quote = FALSE
+)

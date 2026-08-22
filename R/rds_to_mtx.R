@@ -1,5 +1,6 @@
 # Reads one GEO .rds (zUMIs dgecounts) file, writes a 10x MTX triplet.
 library(Matrix)
+library(org.Hs.eg.db)
 
 sample_id <- snakemake@wildcards[["sample"]]
 
@@ -22,9 +23,18 @@ system(paste("gzip -f", matrix_path))
 
 writeLines(colnames(counts), gzfile(snakemake@output[["barcodes"]]))
 
+ensembl_ids <- rownames(counts)
+symbols <- AnnotationDbi::mapIds(
+    org.Hs.eg.db,
+    keys = ensembl_ids,
+    keytype = "ENSEMBL",
+    column = "SYMBOL")
+
+symbols[is.na(symbols)] <- ensembl_ids[is.na(symbols)]
+
 features <- data.frame(
-  id = rownames(counts),
-  symbol = rownames(counts),
+  id = ensembl_ids,
+  symbol = symbols,
   type = "Gene Expression"
 )
 write.table(
